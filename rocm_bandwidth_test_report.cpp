@@ -63,12 +63,16 @@ static void printRecord(uint32_t size, double avg_time,
   std::cout << std::fixed;
   std::cout.width(format);
   std::cout << size_str.str();
+  // avg time
   std::cout.width(format);
   std::cout << (avg_time * 1e6);
+  // BW in GB/sec
   std::cout.width(format);
   std::cout << bandwidth;
+  // minimum time
   std::cout.width(format);
   std::cout << (min_time * 1e6);
+  // maximum BW
   std::cout.width(format);
   std::cout << peak_bandwidth;
   std::cout << std::endl;

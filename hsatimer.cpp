@@ -142,6 +142,9 @@ double PerfTimer::ReadTimer(int index) {
     return HSA_FAILURE;
   }
 
+  cout << "clocks: " << _timers[index]->_clocks << endl;
+  cout << "freq: " << _timers[index]->_freq << endl;
+
   double reading = double(_timers[index]->_clocks);
 
   reading = double(reading / _timers[index]->_freq);

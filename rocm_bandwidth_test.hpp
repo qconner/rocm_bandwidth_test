@@ -177,7 +177,7 @@ class RocmBandwidthTest : public BaseTest {
  public:
 
   // @brief: Constructor for test case of RocmBandwidthTest
-  RocmBandwidthTest(int argc, char** argv);
+  RocmBandwidthTest(int argc, char** argv, size_t num);
 
   // @brief: Destructor for test case of RocmBandwidthTest
   virtual ~RocmBandwidthTest();
@@ -422,10 +422,6 @@ class RocmBandwidthTest : public BaseTest {
   
   // Env key to determine if the run is a default one
   char* bw_default_run_;
-
-  // Variable to store argument number
-
-  // Variable to store argument number
 
   // Variable to store argument number
   uint32_t usr_argc_;

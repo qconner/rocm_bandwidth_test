@@ -287,24 +287,44 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
   // Bind the number of iterations
   uint32_t iterations = GetIterationNum();
 
-  // Iterate through the differnt buffer sizes to
+  // TODO: promote iterations count to a command line argument
+  //iterations = 1000; // temporary override
+
+  // Iterate through the different buffer sizes to
   // compute the bandwidth as determined by copy
   for (uint32_t idx = 0; idx < size_len; idx++) {
     
     // This should not be happening
     uint32_t curr_size = size_list_[idx];
     if (curr_size > max_size) {
+      cerr << "ERROR: Illegal DMA buffer size" << endl;
       break;
     }
 
+    // verify == false means the verification option was turned on but the data changed after DMA'ing it around
     bool verify = true;
-    std::vector<double> cpu_time;
-    std::vector<double> gpu_time;
+
+    cout << endl << "RUNNING " << iterations << " ITERATIONS for buffer size " << curr_size << endl;
+
+    // this is an accumulator for elapsed GPU time to conduct a DMA
+    double accumulated_gpu_time = 0.0;
+
+    // Create a timer object and reset signals
+    PerfTimer timer;
+    uint32_t index = timer.CreateTimer();
+
+    // Start the CPU-side time
+    timer.StartTimer(index);
+
+    // run a number of iterations for this DMA buffer size
     for (uint32_t it = 0; it < iterations; it++) {
+      /*
       if (it % 2) {
         printf(".");
         fflush(stdout);
       }
+      */
+      cout << ".";
 
       hsa_signal_store_relaxed(signal_fwd, 1);
       if (bidir) {
@@ -318,12 +338,7 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
                            dst_agent_fwd, buf_dst_fwd);
       }
 
-      // Create a timer object and reset signals
-      PerfTimer timer;
-      uint32_t index = timer.CreateTimer();
-
-      // Start the timer and launch forward copy operation
-      timer.StartTimer(index);
+      // Launch forward copy operation
       err_ = hsa_amd_memory_async_copy(buf_dst_fwd, dst_agent_fwd,
                                        buf_src_fwd, src_agent_fwd,
                                        curr_size, 0, NULL, signal_fwd);
@@ -338,13 +353,14 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
       }
 
       if (bw_blocking_run_ == NULL) {
-
+        cout << "W";
         // Wait for the forward copy operation to complete
         while (hsa_signal_wait_acquire(signal_fwd, HSA_SIGNAL_CONDITION_LT, 1,
                                        uint64_t(-1), HSA_WAIT_STATE_ACTIVE));
 
         // Wait for the reverse copy operation to complete
         if (bidir) {
+	  cout << "B";
           while (hsa_signal_wait_acquire(signal_rev, HSA_SIGNAL_CONDITION_LT, 1,
                                          uint64_t(-1), HSA_WAIT_STATE_ACTIVE));
         }
@@ -363,22 +379,8 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
 
       }
 
-      // Stop the timer object
-      timer.StopTimer(index);
-
-      // Push the time taken for copy into a vector of copy times
-      cpu_time.push_back(timer.ReadTimer(index));
-
-      // Collect time from the signal(s)
-      if (print_cpu_time_ == false) {
-        if (trans.copy.uses_gpu_) {
-          double temp = GetGpuCopyTime(bidir, signal_fwd, signal_rev);
-          gpu_time.push_back(temp);
-        }
-      }
-
       if (validate_) {
-
+        cout << "v";
         // Re-Establish access to destination buffer and host buffer
         AcquirePoolAcceses(dst_dev_idx_fwd,
                            dst_agent_fwd, buf_dst_fwd,
@@ -395,30 +397,66 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
         if (err_ != HSA_STATUS_SUCCESS) {
           verify = false;
           exit_value_ = err_;
+	  cerr << "ERROR: data corrupted during DMA" << endl;
+	  break;
         }
       }
-    }
+      
+      // Collect time from the signal(s)
+      if (print_cpu_time_ == false) {
+	if (trans.copy.uses_gpu_) {
+	  accumulated_gpu_time += GetGpuCopyTime(bidir, signal_fwd, signal_rev);
+	}
+      }
+
+    }  // end iterations
+
+    // Stop the timer object
+    timer.StopTimer(index);
+
+    cout << endl << "ran " << iterations << " iterations" << endl;
+
+    // aggregate elapsed time for "iterations" count of DMA transfers
+    double aggregate_cpu_time = timer.ReadTimer(index);
+
+    // per-DMA timing is not practical b/c the libC call to get time of day
+    // takes longer than the DMA itself, limiting the ability of the benchmark
+    // to saturate the PCIe bus
+
+    // for this reason, min copy time will equal mean copy time for both the cpu and gpu
+
+    cout << endl;
+    cout << "USING CPU TSC TIMER:";
+    cout << "elapsed seconds:     " << aggregate_cpu_time << endl;
+    cout << "seconds per DMA:     " << aggregate_cpu_time / iterations << endl;
+    cout << "agg BW (GB/sec):     " << ((double)curr_size / aggregate_cpu_time) * ((double)iterations / (double)(1024 * 1024 * 1024)) << endl;  // watch for integer overflow
+
 
     // Get Cpu min copy time
-    trans.cpu_min_time_.push_back(GetMinTime(cpu_time));
+    trans.cpu_min_time_.push_back(aggregate_cpu_time / (double)iterations);  // elapsed time for single buffer
+                                                                           // since Display() thinks only curr_size bytes were sent
+                                                                           // Display() doesn't know about iterations
+
     // Get Cpu mean copy time and store to the array
-    trans.cpu_avg_time_.push_back(GetMeanTime(cpu_time));
+    trans.cpu_avg_time_.push_back(aggregate_cpu_time / (double)iterations);
 
     if (print_cpu_time_ == false) {
       if (trans.copy.uses_gpu_) {
-        // Get Gpu min and mean copy times
-        double min_time = (verify) ? GetMinTime(gpu_time) : std::numeric_limits<double>::max();
-        double mean_time = (verify) ? GetMeanTime(gpu_time) : std::numeric_limits<double>::max();
-        trans.gpu_min_time_.push_back(min_time);
-        trans.gpu_avg_time_.push_back(mean_time);
+	// Get Gpu min and mean copy times
+	cout << endl << "USING GPU COPY TIMES:" << endl;
+	cout << "elapsed seconds:     " << accumulated_gpu_time << endl;
+        cout << "seconds per DMA:     " << accumulated_gpu_time / iterations << endl;
+        cout << "agg BW (GB/sec):     " << ((double)curr_size / accumulated_gpu_time) * ((double)iterations / (double)(1024 * 1024 * 1024)) << endl;  // watch for integer overflow
+
+        double min_time = (verify) ? accumulated_gpu_time  / (double)iterations: std::numeric_limits<double>::max();
+	double mean_time = (verify) ? accumulated_gpu_time  / (double)iterations: std::numeric_limits<double>::max();
+	trans.gpu_min_time_.push_back(min_time);
+	trans.gpu_avg_time_.push_back(mean_time);
       }
     }
-    verify = true;
 
-    // Clear the stack of cpu times
-    cpu_time.clear();
-    gpu_time.clear();
   }
+
 
   // Free up buffers and signal objects used in copy operation
   ReleaseBuffers(bidir, buf_src_fwd, buf_src_rev,
@@ -501,11 +539,11 @@ void RocmBandwidthTest::SetUp() {
   }
 }
 
-RocmBandwidthTest::RocmBandwidthTest(int argc, char** argv) : BaseTest() {
-  
+RocmBandwidthTest::RocmBandwidthTest(int argc, char** argv, size_t num) : BaseTest(num) {
+
   usr_argc_ = argc;
   usr_argv_ = argv;
-  
+
   pool_index_ = 0;
   cpu_index_ = -1;
   agent_index_ = 0;

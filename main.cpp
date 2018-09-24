@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
   }
 
   // Create the Bandwidth test object
-  RocmBandwidthTest bw_test1(argc, argv);
+  RocmBandwidthTest bw_test1(argc, argv, 833);
 
   // Initialize the Bandwidth test object
   bw_test1.SetUp();
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
   }
 
   // Create the Bandwidth test object
-  RocmBandwidthTest bw_test2(argc, argv);
+  RocmBandwidthTest bw_test2(argc, argv, 833);
 
   // Initialize the Bandwidth test object
   bw_test2.SetUp();
