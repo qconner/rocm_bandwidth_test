@@ -353,14 +353,16 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
       }
 
       if (bw_blocking_run_ == NULL) {
-        cout << "W";
+        cout << "F";
+	//cout.flush();
         // Wait for the forward copy operation to complete
         while (hsa_signal_wait_acquire(signal_fwd, HSA_SIGNAL_CONDITION_LT, 1,
                                        uint64_t(-1), HSA_WAIT_STATE_ACTIVE));
 
         // Wait for the reverse copy operation to complete
         if (bidir) {
-	  cout << "B";
+	  cout << "R";
+	  //cout.flush();
           while (hsa_signal_wait_acquire(signal_rev, HSA_SIGNAL_CONDITION_LT, 1,
                                          uint64_t(-1), HSA_WAIT_STATE_ACTIVE));
         }
@@ -368,10 +370,14 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
       } else {
 
         // Wait for the forward copy operation to complete
-        hsa_signal_wait_acquire(signal_fwd, HSA_SIGNAL_CONDITION_LT, 1,
+	cout << "f";
+	//cout.flush();
+	hsa_signal_wait_acquire(signal_fwd, HSA_SIGNAL_CONDITION_LT, 1,
                                        uint64_t(-1), HSA_WAIT_STATE_BLOCKED);
 
         // Wait for the reverse copy operation to complete
+	cout << "r";
+	//cout.flush();
         if (bidir) {
           hsa_signal_wait_acquire(signal_rev, HSA_SIGNAL_CONDITION_LT, 1,
                                          uint64_t(-1), HSA_WAIT_STATE_BLOCKED);
@@ -380,7 +386,7 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
       }
 
       if (validate_) {
-        cout << "v";
+        cout << "V";
         // Re-Establish access to destination buffer and host buffer
         AcquirePoolAcceses(dst_dev_idx_fwd,
                            dst_agent_fwd, buf_dst_fwd,
