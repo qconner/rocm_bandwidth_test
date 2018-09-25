@@ -354,7 +354,7 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
 
       if (bw_blocking_run_ == NULL) {
         cout << "F";
-	//cout.flush();
+	cout.flush();
         // Wait for the forward copy operation to complete
         while (hsa_signal_wait_acquire(signal_fwd, HSA_SIGNAL_CONDITION_LT, 1,
                                        uint64_t(-1), HSA_WAIT_STATE_ACTIVE));
@@ -362,7 +362,7 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
         // Wait for the reverse copy operation to complete
         if (bidir) {
 	  cout << "R";
-	  //cout.flush();
+	  cout.flush();
           while (hsa_signal_wait_acquire(signal_rev, HSA_SIGNAL_CONDITION_LT, 1,
                                          uint64_t(-1), HSA_WAIT_STATE_ACTIVE));
         }
@@ -371,13 +371,13 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
 
         // Wait for the forward copy operation to complete
 	cout << "f";
-	//cout.flush();
+	cout.flush();
 	hsa_signal_wait_acquire(signal_fwd, HSA_SIGNAL_CONDITION_LT, 1,
                                        uint64_t(-1), HSA_WAIT_STATE_BLOCKED);
 
         // Wait for the reverse copy operation to complete
 	cout << "r";
-	//cout.flush();
+	cout.flush();
         if (bidir) {
           hsa_signal_wait_acquire(signal_rev, HSA_SIGNAL_CONDITION_LT, 1,
                                          uint64_t(-1), HSA_WAIT_STATE_BLOCKED);
@@ -432,7 +432,7 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
     // for this reason, min copy time will equal mean copy time for both the cpu and gpu
 
     cout << endl;
-    cout << "USING CPU TSC TIMER:";
+    cout << "USING CPU TSC TIMER:" << endl;
     cout << "elapsed seconds:     " << aggregate_cpu_time << endl;
     cout << "seconds per DMA:     " << aggregate_cpu_time / iterations << endl;
     cout << "agg BW (GB/sec):     " << ((double)curr_size / aggregate_cpu_time) * ((double)iterations / (double)(1024 * 1024 * 1024)) << endl;  // watch for integer overflow
@@ -450,9 +450,10 @@ void RocmBandwidthTest::RunCopyBenchmark(async_trans_t& trans) {
       if (trans.copy.uses_gpu_) {
 	// Get Gpu min and mean copy times
 	cout << endl << "USING GPU COPY TIMES:" << endl;
-	cout << "elapsed seconds:     " << accumulated_gpu_time << endl;
-        cout << "seconds per DMA:     " << accumulated_gpu_time / iterations << endl;
-        cout << "agg BW (GB/sec):     " << ((double)curr_size / accumulated_gpu_time) * ((double)iterations / (double)(1024 * 1024 * 1024)) << endl;  // watch for integer overflow
+	cout << "elapsed seconds:     " << (double)accumulated_gpu_time / 1E9 << endl;
+        cout << "seconds per DMA:     " << (double)accumulated_gpu_time / 1E9 / iterations << endl;
+        cout << "agg BW (GB/sec):     " << ((double)curr_size * iterations / (double)(1024 * 1024 * 1024) /
+					    ((double)accumulated_gpu_time / 1E9)) << endl;  // watch for integer overflow
 
         double min_time = (verify) ? accumulated_gpu_time  / (double)iterations: std::numeric_limits<double>::max();
 	double mean_time = (verify) ? accumulated_gpu_time  / (double)iterations: std::numeric_limits<double>::max();
